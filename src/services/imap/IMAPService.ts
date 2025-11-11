@@ -1,13 +1,17 @@
-import Imap from 'node-imap';
-import { simpleParser } from 'mailparser';
-import type { ParsedMail } from 'mailparser';
-import { v4 as uuidv4 } from 'uuid';
-import type { EmailAccount, EmailDocument, IMAPConnectionStatus } from '../../types/index.js';
-import config from '../../config/index.js';
-import ElasticsearchService from '../elasticsearch/ElasticsearchService.js';
-import AIService from '../ai/AIService.js';
-import WebhookService from '../webhook/WebhookService.js';
-import { htmlToText } from 'html-to-text';
+import Imap from "node-imap";
+import { simpleParser } from "mailparser";
+import type { ParsedMail } from "mailparser";
+import { v4 as uuidv4 } from "uuid";
+import type {
+  EmailAccount,
+  EmailDocument,
+  IMAPConnectionStatus,
+} from "../../types/index.js";
+import config from "../../config/index.js";
+import ElasticsearchService from "../elasticsearch/ElasticsearchService.js";
+import AIService from "../ai/AIService.js";
+import WebhookService from "../webhook/WebhookService.js";
+import { htmlToText } from "html-to-text";
 
 export class IMAPService {
   private connections: Map<string, Imap> = new Map();
@@ -41,9 +45,9 @@ export class IMAPService {
       });
 
       this.setupIMAPHandlers(imap, account);
-      
+
       imap.connect();
-      
+
       this.connections.set(account.id, imap);
       this.connectionStatus.set(account.id, {
         accountId: account.id,
@@ -58,9 +62,8 @@ export class IMAPService {
     }
   }
 
-
   private setupIMAPHandlers(imap: Imap, account: EmailAccount): void {
-    imap.once('ready', async () => {
+    imap.once("ready", async () => {
       console.log(`✅ Connected to ${account.email}`);
       this.connectionStatus.set(account.id, {
         accountId: account.id,
@@ -79,7 +82,7 @@ export class IMAPService {
       }
     });
 
-    imap.once('error', (err: Error) => {
+    imap.once("error", (err: Error) => {
       console.error(`❌ IMAP Error for ${account.email}:`, err);
       this.connectionStatus.set(account.id, {
         accountId: account.id,
@@ -90,7 +93,7 @@ export class IMAPService {
       this.scheduleReconnect(account);
     });
 
-    imap.once('end', () => {
+    imap.once("end", () => {
       console.log(`🔌 Connection ended for ${account.email}`);
       this.connectionStatus.set(account.id, {
         accountId: account.id,
@@ -101,11 +104,13 @@ export class IMAPService {
     });
 
     // Listen for new mail events
-    imap.on('mail', async (numNewMsgs: number) => {
-      console.log(`📬 ${numNewMsgs} new email(s) received for ${account.email}`);
+    imap.on("mail", async (numNewMsgs: number) => {
+      console.log(
+        `📬 ${numNewMsgs} new email(s) received for ${account.email}`
+      );
       try {
         // Fetch only the latest email's metadata (ENVELOPE/BODYSTRUCTURE)
-        imap.search(['UNSEEN'], async (err, results) => {
+        imap.search(["UNSEEN"], async (err, results) => {
           if (err) {
             console.error(`❌ Error searching for new emails:`, err);
             return;
@@ -113,8 +118,13 @@ export class IMAPService {
           if (!results || results.length === 0) return;
           // Only fetch the latest unseen email
           const latestSeqNo = results[results.length - 1];
-          if (typeof latestSeqNo === 'number') {
-            await this.fetchEmailsBySeqNo(imap, account, [latestSeqNo], 'INBOX');
+          if (typeof latestSeqNo === "number") {
+            await this.fetchEmailsBySeqNo(
+              imap,
+              account,
+              [latestSeqNo],
+              "INBOX"
+            );
           }
           // Pass to Phase 2 (already handled in fetchEmailsBySeqNo)
         });
@@ -124,39 +134,55 @@ export class IMAPService {
     });
 
     // Listen for expunge (deletion) events
-    imap.on('expunge', (seqno: number) => {
-      console.log(`🗑️ Email deleted (expunged) for ${account.email}, seqno: ${seqno}`);
+    imap.on("expunge", (seqno: number) => {
+      console.log(
+        `🗑️ Email deleted (expunged) for ${account.email}, seqno: ${seqno}`
+      );
       // You can add logic here to update your index or notify downstream systems
     });
   }
 
-  private async performInitialSync(imap: Imap, account: EmailAccount): Promise<void> {
+  private async performInitialSync(
+    imap: Imap,
+    account: EmailAccount
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
-      imap.openBox('INBOX', false, async (err, box) => {
+      imap.openBox("INBOX", false, async (err, box) => {
         if (err) {
           reject(err);
           return;
         }
 
-  console.log(`📥 Starting initial sync for ${account.email} (fetching last 10 emails)`);
+        console.log(
+          `📥 Starting initial sync for ${account.email} (fetching last 10 emails)`
+        );
 
-  // Fetch only the last 10 emails for now to avoid rate limits
-  imap.search(['ALL'], async (err, results) => {
+        // Fetch only the last 10 emails for now to avoid rate limits
+        imap.search(["ALL"], async (err, results) => {
           if (err) {
             reject(err);
             return;
           }
 
           if (!results || results.length === 0) {
-            console.log(`✅ No emails found for initial sync (${account.email})`);
+            console.log(
+              `✅ No emails found for initial sync (${account.email})`
+            );
             resolve();
             return;
           }
 
           try {
             const limitedResults = results.slice(-10);
-            console.log(`📧 Found ${results.length} emails, syncing last ${limitedResults.length} for ${account.email}`);
-            await this.fetchEmailsBySeqNo(imap, account, limitedResults, 'INBOX');
+            console.log(
+              `📧 Found ${results.length} emails, syncing last ${limitedResults.length} for ${account.email}`
+            );
+            await this.fetchEmailsBySeqNo(
+              imap,
+              account,
+              limitedResults,
+              "INBOX"
+            );
             console.log(`✅ Initial sync completed for ${account.email}`);
             resolve();
           } catch (error) {
@@ -170,13 +196,13 @@ export class IMAPService {
   private startIdleMode(imap: Imap, account: EmailAccount): void {
     console.log(`👂 Starting IDLE mode for ${account.email}`);
 
-    imap.on('update', (seqno: number, info: any) => {
+    imap.on("update", (seqno: number, info: any) => {
       console.log(`🔄 Email update detected for ${account.email}`);
     });
 
     // Function to start and maintain IDLE
     const startIdle = () => {
-      if (imap.state === 'authenticated') {
+      if (imap.state === "authenticated") {
         try {
           // The IDLE extension is already enabled by keepalive in connection config
           // We just need to make sure we're listening for 'mail' events
@@ -192,11 +218,13 @@ export class IMAPService {
 
     // Watchdog: Send NOOP every 29 minutes to keep connection alive
     setInterval(() => {
-      if (imap.state === 'authenticated') {
-        console.log(`🔄 Watchdog: Sending NOOP to keep connection alive for ${account.email}`);
+      if (imap.state === "authenticated") {
+        console.log(
+          `🔄 Watchdog: Sending NOOP to keep connection alive for ${account.email}`
+        );
         try {
           // Send NOOP to prevent timeout
-          (imap as any).send('NOOP', (err: Error) => {
+          (imap as any).send("NOOP", (err: Error) => {
             if (err) {
               console.error(`❌ NOOP error for ${account.email}:`, err);
             } else {
@@ -210,9 +238,12 @@ export class IMAPService {
     }, 29 * 60 * 1000); // 29 minutes
   }
 
-  private async fetchNewEmails(imap: Imap, account: EmailAccount): Promise<void> {
+  private async fetchNewEmails(
+    imap: Imap,
+    account: EmailAccount
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
-      imap.search(['UNSEEN'], async (err, results) => {
+      imap.search(["UNSEEN"], async (err, results) => {
         if (err) {
           reject(err);
           return;
@@ -223,10 +254,12 @@ export class IMAPService {
           return;
         }
 
-        console.log(`📨 Fetching ${results.length} new email(s) for ${account.email}`);
+        console.log(
+          `📨 Fetching ${results.length} new email(s) for ${account.email}`
+        );
 
         try {
-          await this.fetchEmailsBySeqNo(imap, account, results, 'INBOX');
+          await this.fetchEmailsBySeqNo(imap, account, results, "INBOX");
           resolve();
         } catch (error) {
           reject(error);
@@ -236,8 +269,21 @@ export class IMAPService {
   }
 
   private formatIMAPDate(d: Date): string {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const day = d.getDate().toString().padStart(2, '0');
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const day = d.getDate().toString().padStart(2, "0");
     const mon = months[d.getMonth()];
     const year = d.getFullYear();
     return `${day}-${mon}-${year}`;
@@ -250,32 +296,31 @@ export class IMAPService {
     folder: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-
       // Only fetch ENVELOPE and BODYSTRUCTURE, not the full body
       const fetch = imap.fetch(seqNos, {
-        bodies: '',
+        bodies: "",
         struct: true,
         markSeen: false,
       });
 
       const emailPromises: Promise<void>[] = [];
 
-      fetch.on('message', (msg, seqno) => {
+      fetch.on("message", (msg, seqno) => {
         const emailPromise = new Promise<void>((resolveEmail, rejectEmail) => {
           let envelope: any = null;
           let bodystructure: any = null;
-          let buffer = '';
+          let buffer = "";
 
           /*msg.on('attributes', (attrs) => {
             envelope = attrs.envelope;
             bodystructure = attrs.struct;*/
-            msg.on('body', (stream) => {
-            stream.on('data', (chunk) => {
-              buffer += chunk.toString('utf8');
+          msg.on("body", (stream) => {
+            stream.on("data", (chunk) => {
+              buffer += chunk.toString("utf8");
             });
           });
 
-          msg.once('end', async () => {
+          msg.once("end", async () => {
             try {
               const parsed = await simpleParser(buffer);
               await this.processEmail(parsed, account, folder);
@@ -290,12 +335,12 @@ export class IMAPService {
         emailPromises.push(emailPromise);
       });
 
-      fetch.once('error', (err) => {
-        console.error('❌ Fetch error:', err);
+      fetch.once("error", (err) => {
+        console.error("❌ Fetch error:", err);
         reject(err);
       });
 
-      fetch.once('end', async () => {
+      fetch.once("end", async () => {
         try {
           await Promise.all(emailPromises);
           resolve();
@@ -313,41 +358,49 @@ export class IMAPService {
   ): Promise<void> {
     try {
       // Deduplicate by Message-ID when available
-      const rawMessageId = (parsed.messageId || '').trim();
+      const rawMessageId = (parsed.messageId || "").trim();
       if (rawMessageId) {
-        const exists = await ElasticsearchService.existsByMessageId(rawMessageId);
+        const exists = await ElasticsearchService.existsByMessageId(
+          rawMessageId
+        );
         if (exists) {
-          console.log(`🟡 Duplicate skipped (messageId=${rawMessageId}) for ${account.email}`);
+          console.log(
+            `🟡 Duplicate skipped (messageId=${rawMessageId}) for ${account.email}`
+          );
           return;
         }
       }
 
       const emailId = uuidv4();
-      const html = typeof parsed.html === 'string' ? parsed.html : '';
-      const text = parsed.text || '';
-      
+      const html = typeof parsed.html === "string" ? parsed.html : "";
+      const text = parsed.text || "";
+
       // Prioritize converting HTML to clean text. Fallback to parsed text.
-      const bodyText = html 
-        ? htmlToText(html, { 
+      const bodyText = html
+        ? htmlToText(html, {
             wordwrap: false,
             selectors: [
-              { selector: 'a', options: { ignoreHref: true } },
-              { selector: 'img', format: 'skip' },
-            ]
-          }) 
+              { selector: "a", options: { ignoreHref: true } },
+              { selector: "img", format: "skip" },
+            ],
+          })
         : text;
       // Helper function to extract email addresses
       const getAddresses = (field: any): string[] => {
         if (!field) return [];
         if (Array.isArray(field)) {
-          return field.flatMap(item => 
-            Array.isArray(item.value) ? item.value.map((v: any) => v.address || '') : []
+          return field.flatMap((item) =>
+            Array.isArray(item.value)
+              ? item.value.map((v: any) => v.address || "")
+              : []
           );
         }
-        return Array.isArray(field.value) ? field.value.map((v: any) => v.address || '') : [];
+        return Array.isArray(field.value)
+          ? field.value.map((v: any) => v.address || "")
+          : [];
       };
 
-      const fromText = parsed.from ? getAddresses(parsed.from)[0] || '' : '';
+      const fromText = parsed.from ? getAddresses(parsed.from)[0] || "" : "";
       const toText = getAddresses(parsed.to);
       const ccText = parsed.cc ? getAddresses(parsed.cc) : undefined;
 
@@ -355,18 +408,20 @@ export class IMAPService {
         id: emailId,
         accountId: account.id,
         folder,
-        subject: parsed.subject || '(No Subject)',
+        subject: parsed.subject || "(No Subject)",
         body: bodyText,
-        ...(typeof parsed.html === 'string' && { htmlBody: parsed.html }),
+        ...(typeof parsed.html === "string" && { htmlBody: parsed.html }),
         from: fromText,
         to: toText,
         ...(ccText && ccText.length > 0 && { cc: ccText }),
         date: parsed.date || new Date(),
-        aiCategory: 'Uncategorized',
+        aiCategory: "Uncategorized",
         indexedAt: new Date(),
         messageId: rawMessageId || emailId,
         ...(parsed.inReplyTo && { inReplyTo: parsed.inReplyTo }),
-        ...(Array.isArray(parsed.references) && { references: parsed.references }),
+        ...(Array.isArray(parsed.references) && {
+          references: parsed.references,
+        }),
       };
 
       // Index email first
@@ -380,17 +435,22 @@ export class IMAPService {
       });
 
       // Update category
-      await ElasticsearchService.updateEmailCategory(emailId, categorization.category);
+      await ElasticsearchService.updateEmailCategory(
+        emailId,
+        categorization.category
+      );
       emailDoc.aiCategory = categorization.category;
 
       // Trigger webhooks if Interested
-      if (categorization.category === 'Interested') {
+      if (categorization.category === "Interested") {
         await WebhookService.triggerInterestedWebhooks(emailDoc);
       }
 
-      console.log(`✅ Processed email: ${emailDoc.subject} [${categorization.category}]`);
+      console.log(
+        `✅ Processed email: ${emailDoc.subject} [${categorization.category}]`
+      );
     } catch (error) {
-      console.error('❌ Error processing email:', error);
+      console.error("❌ Error processing email:", error);
     }
   }
 
@@ -398,12 +458,19 @@ export class IMAPService {
     const attempts = this.reconnectAttempts.get(account.id) || 0;
 
     if (attempts >= config.imap.maxReconnectAttempts) {
-      console.error(`❌ Max reconnection attempts reached for ${account.email}`);
+      console.error(
+        `❌ Max reconnection attempts reached for ${account.email}`
+      );
       return;
     }
 
-    const delay = Math.min(config.imap.reconnectDelay * Math.pow(2, attempts), 60000);
-    console.log(`🔄 Reconnecting ${account.email} in ${delay}ms (attempt ${attempts + 1})`);
+    const delay = Math.min(
+      config.imap.reconnectDelay * Math.pow(2, attempts),
+      60000
+    );
+    console.log(
+      `🔄 Reconnecting ${account.email} in ${delay}ms (attempt ${attempts + 1})`
+    );
 
     this.reconnectAttempts.set(account.id, attempts + 1);
 

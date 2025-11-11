@@ -8,12 +8,11 @@ AI-Powered Email Onebox with Real-Time IMAP Sync, Elasticsearch, and RAG
 - 🔍 Full-text search with Elasticsearch
 - 🤖 AI-powered email categorization using Google Gemini
 - 🧠 RAG (Retrieval-Augmented Generation) for intelligent replies
-- 🔔 Webhook notifications for interested leads
 - 📊 REST API for email management
 
 ## Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - Docker and Docker Compose (for Elasticsearch)
 - Google Gemini API key
 
@@ -32,8 +31,8 @@ npm run docker:up
 ```
 
 This starts:
+
 - Elasticsearch on port 9200
-- (Optional) Qdrant on port 6333
 
 ### 3. Configure Environment
 
@@ -63,19 +62,10 @@ AI_API_KEY=your_gemini_api_key_here
 ELASTICSEARCH_NODE=http://localhost:9200
 ELASTICSEARCH_INDEX=emails
 
-# Optional: Webhooks
-WEBHOOK_SLACK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-WEBHOOK_GENERIC_URL=https://your-webhook-endpoint.com/webhook
-# Multiple interested endpoints (comma-separated)
-WEBHOOK_INTERESTED_URLS=
 
 # Optional App URL used in deep links
 APP_BASE_URL=http://localhost:3000
 
-# Optional Qdrant for RAG
-QDRANT_URL=http://localhost:6333
-QDRANT_COLLECTION=product_context
-# QDRANT_API_KEY=
 ```
 
 ### 4. Run Development Server
@@ -87,10 +77,9 @@ npm run dev
 The server will start on http://localhost:3000
 
 Notes:
-- Initial sync is limited to the last 10 emails to avoid AI rate limits.
+
+- Initial sync is limited to the last 30 emails to avoid AI rate limits.
 - New emails are processed in real time via IMAP IDLE.
-- Slack notifications are concise (From, Subject, View Email).
-- Generic webhooks carry a trimmed body and omit large HTML.
 
 ## Email Account Configuration
 
@@ -223,11 +212,11 @@ tsx watch automatically reloads on file changes during development.
 - Async/await for asynchronous operations
 - Type-safe with strict TypeScript config (noUncheckedIndexedAccess, exactOptionalPropertyTypes)
 
-
 ## License
 
 MIT
 
 ## Author
 
-Teja Vardhan Reddy
+Veera Reddy
+"# Email-Aggregator" 

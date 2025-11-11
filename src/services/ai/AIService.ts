@@ -6,18 +6,18 @@ import {
   TaskType,
   type GenerationConfig,
   type Schema,
-} from '@google/generative-ai';
-import type { AICategorizationResponse } from '../../types/index.js';
-import config from '../../config/index.js';
+} from "@google/generative-ai";
+import type { AICategorizationResponse } from "../../types/index.js";
+import config from "../../config/index.js";
 
 // The list of valid categories, defined once.
 const validCategories = [
-  'Interested',
-  'Meeting Booked',
-  'Not Interested',
-  'Spam',
-  'Out of Office',
-  'Uncategorized',
+  "Interested",
+  "Meeting Booked",
+  "Not Interested",
+  "Spam",
+  "Out of Office",
+  "Uncategorized",
 ];
 
 // The schema for the AI's response, using the constant above.
@@ -26,11 +26,11 @@ const categorizationSchema: Schema = {
   properties: {
     category: {
       type: SchemaType.STRING,
-      format: 'enum', // Correctly added as per your debugging
+      format: "enum", // Correctly added as per your debugging
       enum: validCategories,
     },
   },
-  required: ['category'],
+  required: ["category"],
 };
 
 export class AIService {
@@ -39,11 +39,11 @@ export class AIService {
   private generationModel: any | null = null;
 
   constructor() {
-    if (config.ai.provider === 'gemini' && config.ai.apiKey) {
+    if (config.ai.provider === "gemini" && config.ai.apiKey) {
       this.genAI = new GoogleGenerativeAI(config.ai.apiKey);
 
       const generationConfig: GenerationConfig = {
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         responseSchema: categorizationSchema,
         temperature: 0,
       };
@@ -77,38 +77,41 @@ Focus: Prioritize job-related and tech-related content as "Interested".`,
     from: string;
   }): Promise<AICategorizationResponse> {
     if (!this.categorizationModel) {
-      console.warn('⚠️  AI service not configured, returning default category');
-      return { category: 'Uncategorized' };
+      console.warn("⚠️  AI service not configured, returning default category");
+      return { category: "Uncategorized" };
     }
 
     try {
       const prompt = `
         From: ${email.from}
         Subject: ${email.subject}
-        Body: ${email.body.substring(0, 4000)} 
+        Body: ${email.body.substring(0, 4000)}
       `.trim();
 
       const result = await this.categorizationModel.generateContent(prompt);
       const response = await result.response;
-      
+
       const jsonResponse = JSON.parse(response.text());
       const category = jsonResponse.category;
-      
+
       // Use the constant for validation
       if (category && validCategories.includes(category)) {
         return { category };
       }
-      
-      return { category: 'Uncategorized' };
+
+      return { category: "Uncategorized" };
     } catch (error) {
-      console.error('❌ Error categorizing email:', error);
-      return { category: 'Uncategorized' };
+      console.error("❌ Error categorizing email:", error);
+      return { category: "Uncategorized" };
     }
   }
 
-  async generateReply(emailContent: string, contexts?: string[]): Promise<string> {
+  async generateReply(
+    emailContent: string,
+    contexts?: string[]
+  ): Promise<string> {
     if (!this.generationModel) {
-      throw new Error('AI service not configured');
+      throw new Error("AI service not configured");
     }
 
     try {
@@ -119,7 +122,7 @@ ${emailContent}
 
       if (contexts && contexts.length > 0) {
         prompt += `\n**Retrieved Context:**
-${contexts.join('\n---\n')}
+${contexts.join("\n---\n")}
 `;
       }
 
@@ -128,12 +131,12 @@ Draft a professional and helpful reply to the above email.`;
 
       // Start chat without systemInstruction (it's already set in the model)
       const chat = this.generationModel.startChat();
-      
+
       const result = await chat.sendMessage(prompt.trim());
       const response = await result.response;
       return response.text();
     } catch (error) {
-      console.error('❌ Error generating reply:', error);
+      console.error("❌ Error generating reply:", error);
       throw error;
     }
   }
